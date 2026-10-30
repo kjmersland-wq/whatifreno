@@ -4,9 +4,8 @@
 Cloudflare Workers via the OpenNext adapter (`@opennextjs/cloudflare`), configured in `wrangler.jsonc` and `open-next.config.ts`.
 (`@cloudflare/next-on-pages` was dropped: it is deprecated, supports Next only up to 15.5.2, and targets Pages, not Workers.)
 
-- `npm run build` stays a plain `next build`. OpenNext calls it internally, so never point `build` at OpenNext (infinite recursion).
-- `npm run deploy` = `opennextjs-cloudflare build && opennextjs-cloudflare deploy`; `npm run preview` runs it locally.
-- Cloudflare dashboard (Workers Builds): build command `npm run build` (or empty), deploy command `npm run deploy`.
+- `npm run build` runs the full OpenNext build (`opennextjs-cloudflare build`), which calls `npm run build:next` (the plain `next build`) via `buildCommand` in `open-next.config.ts`. Never make `build:next` call OpenNext (infinite recursion).
+- Cloudflare dashboard (Workers Builds) works with its defaults: build command `npm run build`, deploy command `npx wrangler deploy` (wrangler detects OpenNext and runs `opennextjs-cloudflare deploy`, which needs the `.open-next` output from the build). `npm run deploy` / `npm run preview` do the same locally.
 - The Worker needs the `nodejs_compat` flag (set in wrangler.jsonc).
 - `NEXT_PUBLIC_*` variables are inlined at build time: define them as *build* variables. Secrets (`AUTH_SECRET`, `PADDLE_API_KEY`, `PADDLE_WEBHOOK_SECRET`) are runtime secrets (`wrangler secret put` or dashboard).
 - Local Worker secrets go in `.dev.vars` (gitignored).
