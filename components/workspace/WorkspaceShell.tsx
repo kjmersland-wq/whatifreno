@@ -11,6 +11,8 @@ import {
   type ModificationKind,
   type RegionId,
 } from "@/lib/costEstimator";
+import { formatQuantity } from "@/lib/format";
+import { feetToMeters } from "@/lib/units";
 import { CostTicker } from "@/components/CostTicker";
 import { ModificationPanel } from "./ModificationPanel";
 import { XRHitTestPlaceholder } from "./XRHitTestPlaceholder";
@@ -61,14 +63,44 @@ export function WorkspaceShell() {
     router.push(`/checkout?${designToSearchParams({ region: regionId, quantities })}`);
   }, [router, regionId, quantities]);
 
+  const { region } = estimate;
+  const sceneLabels = useMemo(
+    () => ({
+      wall: formatQuantity(quantities["load-bearing-wall-removal"], "length", region),
+      garage: formatQuantity(quantities["garage-addition"], "area", region),
+    }),
+    [quantities, region],
+  );
+
+  // A gentle starting point for first-time visitors: 3 m (or the nearest whole 10 ft) of wall.
+  const exampleWall = region.unitSystem === "metric" ? 3 : feetToMeters(10);
+  const emptyHint = (
+    <>
+      Try dragging the load-bearing wall to {formatQuantity(exampleWall, "length", region)} and watch
+      the range appear.{" "}
+      <button
+        type="button"
+        onClick={() => setQuantity("load-bearing-wall-removal", exampleWall)}
+        className="text-sky-200 underline-offset-4 hover:underline"
+      >
+        Show me
+      </button>
+    </>
+  );
+
   return (
     <div className="relative h-dvh w-full overflow-hidden">
       <div className="absolute inset-0">
-        <FloorPlanScene quantities={quantities} />
+        <FloorPlanScene quantities={quantities} labels={sceneLabels} />
       </div>
+
+      <p className="pointer-events-none absolute bottom-4 left-1/2 hidden -translate-x-1/2 text-xs text-zinc-500 md:block">
+        Drag to rotate · scroll to zoom
+      </p>
 
       <CostTicker
         estimate={estimate}
+        emptyHint={emptyHint}
         className="absolute inset-x-3 top-3 md:inset-x-auto md:right-4 md:top-4 md:w-[22rem]"
       />
 

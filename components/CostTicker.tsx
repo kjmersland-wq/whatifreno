@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { EstimateResult } from "@/lib/costEstimator";
 import { formatMoney, formatQuantity } from "@/lib/format";
 import { useAnimatedNumber } from "@/hooks/useAnimatedNumber";
 
 interface CostTickerProps {
   estimate: EstimateResult;
+  /** Shown while nothing is simulated yet. */
+  emptyHint?: ReactNode;
   className?: string;
 }
 
@@ -14,7 +16,7 @@ interface CostTickerProps {
  * Floating budget dashboard. Shows the running Min/Max range with animated digits,
  * a labour/material split, and an expandable per-change breakdown.
  */
-export function CostTicker({ estimate, className = "" }: CostTickerProps) {
+export function CostTicker({ estimate, emptyHint, className = "" }: CostTickerProps) {
   const [open, setOpen] = useState(false);
   const { region, total, labor, material, lines } = estimate;
 
@@ -47,7 +49,7 @@ export function CostTicker({ estimate, className = "" }: CostTickerProps) {
 
       {isEmpty ? (
         <p className="mt-4 text-sm leading-relaxed text-zinc-400">
-          Hva om…? Try an idea on the left and watch the range appear.
+          {emptyHint ?? "Hva om…? Try an idea on the left and watch the range appear."}
         </p>
       ) : (
         <>
@@ -67,6 +69,12 @@ export function CostTicker({ estimate, className = "" }: CostTickerProps) {
               </span>
             </div>
           </div>
+
+          <p className="mt-3 text-[11px] leading-relaxed text-zinc-500">
+            An indicative budget range, not a quote.
+            {lines.some((l) => l.kind === "load-bearing-wall-removal") &&
+              " Removing a load-bearing wall always needs a structural engineer."}
+          </p>
 
           <button
             type="button"
