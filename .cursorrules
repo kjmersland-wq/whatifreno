@@ -1,18 +1,18 @@
 # RenoEstimate: project rules
 
 ## Deployment target
-Cloudflare Workers via the OpenNext adapter (`@opennextjs/cloudflare`), configured in `wrangler.jsonc` and `open-next.config.ts`.
-(`@cloudflare/next-on-pages` was dropped: it is deprecated, supports Next only up to 15.5.2, and targets Pages, not Workers.)
+Cloudflare **Pages** via `@cloudflare/next-on-pages` (deprecated upstream in favour of OpenNext, and it declares support for Next <=15.5.2; we run 15.5.x with `legacy-peer-deps` in `.npmrc`).
 
-- `npm run build` runs the full OpenNext build (`opennextjs-cloudflare build`), which calls `npm run build:next` (the plain `next build`) via `buildCommand` in `open-next.config.ts`. Never make `build:next` call OpenNext (infinite recursion).
-- Cloudflare dashboard (Workers Builds) works with its defaults: build command `npm run build`, deploy command `npx wrangler deploy` (wrangler detects OpenNext and runs `opennextjs-cloudflare deploy`, which needs the `.open-next` output from the build). `npm run deploy` / `npm run preview` do the same locally.
-- The Worker needs the `nodejs_compat` flag (set in wrangler.jsonc).
-- `NEXT_PUBLIC_*` variables are inlined at build time: define them as *build* variables. Secrets (`AUTH_SECRET`, `PADDLE_API_KEY`, `PADDLE_WEBHOOK_SECRET`) are runtime secrets (`wrangler secret put` or dashboard).
-- Local Worker secrets go in `.dev.vars` (gitignored).
+- This must be a Cloudflare *Pages* project (Git integration), not a Worker. A Worker project runs `npx wrangler deploy`, whose Next.js auto-setup picks OpenNext.
+- Pages settings: build command `npm run build`, build output directory `.vercel/output/static`, no deploy command. `wrangler.jsonc` declares the same via `pages_build_output_dir`.
+- `npm run build` = `scripts/build.mjs`: `next build`, then `npx @cloudflare/next-on-pages`. The script has a recursion guard (the adapter runs `vercel build`, which re-runs `npm run build`): never replace it with a bare `next build && npx @cloudflare/next-on-pages`.
+- `npm run build:next` is the plain `next build`. `SKIP_PAGES_ADAPTER=1 npm run build` skips the adapter (the adapter cannot run on Windows).
+- Pages needs the `nodejs_compat` compatibility flag (set in wrangler.jsonc; also set it in the Pages project settings).
+- `NEXT_PUBLIC_*` variables are inlined at build time: define them as build variables. Secrets (`AUTH_SECRET`, `PADDLE_API_KEY`, `PADDLE_WEBHOOK_SECRET`) are runtime variables/secrets.
 
-## Runtime rules
-- Do NOT add `export const runtime = "edge"` to routes or pages: OpenNext does not support it (everything runs on the Workers runtime, Node-compatible). Middleware is the only edge-style entry and is supported.
-- Prefer Web APIs (`fetch`, `crypto.subtle`, `TextEncoder`) over Node built-ins; no `fs`/`path` for request-time work (the Worker has no filesystem).
+## Edge runtime rules
+- Every non-static route (route handlers and dynamic pages) must declare `export const runtime = "edge";` at the very top of the file.
+- No Node built-ins (`fs`, `path`, `node:crypto`, `Buffer`, `stream`) in `app/`, `lib/`, `components/` or `hooks/`. Use Web APIs: `fetch`, `Response`, `crypto.subtle`, `TextEncoder`, `URL`.
 - `lib/costEstimator.ts`, `lib/design.ts` and `lib/units.ts` are pure and must stay free of I/O and Node APIs.
 - Secrets are read from `process.env` inside request handlers only, never at module scope, and never in client components (`lib/paddleServer.ts` imports `server-only`).
 

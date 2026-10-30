@@ -1,3 +1,6 @@
+// Dynamic page (reads searchParams): @cloudflare/next-on-pages requires it to run on the edge.
+export const runtime = "edge";
+
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
