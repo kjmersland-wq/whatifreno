@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { IllustrationPlaceholder } from "@/components/IllustrationPlaceholder";
+import { SiteFooter } from "@/components/SiteFooter";
+import { HeroBlueprint } from "@/components/illustrations/HeroBlueprint";
+import { HowItWorksIsometric } from "@/components/illustrations/HowItWorksIsometric";
 
 /**
  * Landing page. Tone: curious, unhurried, collaborative. We ask; we never pitch.
@@ -78,10 +80,7 @@ export default function LandingPage() {
             <span className="text-sm text-zinc-500">Free. No sign-up. Nothing to decide today.</span>
           </div>
         </div>
-        <IllustrationPlaceholder
-          slot="hero-floorplan"
-          brief="Isometric line illustration of a home opening up: one wall dissolving into light."
-        />
+        <HeroBlueprint />
       </section>
 
       {/* Reflective questions */}
@@ -102,11 +101,7 @@ export default function LandingPage() {
       {/* How it works */}
       <section className="mx-auto max-w-6xl px-5 pb-24">
         <div className="grid items-center gap-12 md:grid-cols-[1fr_1.1fr]">
-          <IllustrationPlaceholder
-            slot="how-it-works"
-            brief="Three-frame sequence: walking the plan, trying an idea, reading the range."
-            className="order-2 md:order-1"
-          />
+          <HowItWorksIsometric className="order-2 md:order-1" />
           <div className="order-1 md:order-2">
             <h2 className="text-2xl font-semibold tracking-tight text-zinc-100 sm:text-3xl">
               Curiosity first. Numbers second.
@@ -145,10 +140,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <footer className="mx-auto max-w-6xl px-5 pb-10 text-xs leading-relaxed text-zinc-600">
-        Estimates are indicative ranges for early planning, not quotes. Always confirm with a
-        qualified contractor and, for structural work, a structural engineer.
-      </footer>
+      <SiteFooter />
     </main>
   );
 }

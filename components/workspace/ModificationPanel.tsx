@@ -9,6 +9,7 @@ import {
   type RegionId,
 } from "@/lib/costEstimator";
 import { formatQuantity } from "@/lib/format";
+import { fromDisplayValue, toDisplayValue } from "@/lib/units";
 import type { Quantities } from "./FloorPlanScene";
 
 interface ModificationPanelProps {
@@ -20,7 +21,11 @@ interface ModificationPanelProps {
   className?: string;
 }
 
-/** Controls for simulating structural changes and choosing the pricing region. */
+/**
+ * Controls for simulating structural changes and choosing the pricing region.
+ * Quantities are stored metric; sliders work in the region's display unit
+ * (0.5 m steps for metric, 1 ft for imperial) and convert on the way in and out.
+ */
 export function ModificationPanel({
   quantities,
   regionId,
@@ -29,6 +34,9 @@ export function ModificationPanel({
   onReset,
   className = "",
 }: ModificationPanelProps) {
+  const region = REGIONS[regionId];
+  const system = region.unitSystem;
+
   return (
     <aside className={`glass rounded-3xl p-5 ${className}`}>
       <div className="flex items-center justify-between">
@@ -45,7 +53,12 @@ export function ModificationPanel({
       </p>
 
       <label className="mt-5 block">
-        <span className="text-[11px] uppercase tracking-wider text-zinc-500">Pricing region</span>
+        <span className="flex items-center justify-between text-[11px] uppercase tracking-wider text-zinc-500">
+          Pricing region
+          <span className="rounded-full bg-white/5 px-2 py-0.5 font-mono normal-case tracking-normal text-zinc-400">
+            {system === "metric" ? "Metric" : "Imperial"}
+          </span>
+        </span>
         <select
           value={regionId}
           onChange={(e) => onRegionChange(e.target.value as RegionId)}
@@ -63,23 +76,29 @@ export function ModificationPanel({
         {MODIFICATION_KINDS.map((kind) => {
           const spec = MODIFICATION_CATALOG[kind];
           const value = quantities[kind];
+          const step = spec.step[system];
+          const max = Math.floor(toDisplayValue(spec.maxQuantity, spec.dimension, system) / step + 1e-9) * step;
+          // Snap what the thumb shows to the slider grid; the stored metric value is untouched until moved.
+          const shown = Math.round(toDisplayValue(value, spec.dimension, system) / step) * step;
           return (
             <div key={kind}>
               <div className="flex items-baseline justify-between">
                 <label htmlFor={kind} className="text-sm font-medium text-zinc-200">
                   {spec.label}
                 </label>
-                <span className="font-mono text-xs text-sky-200">{formatQuantity(value, spec.unit)}</span>
+                <span className="font-mono text-xs text-sky-200">{formatQuantity(value, spec.dimension, region)}</span>
               </div>
               <p className="mt-1 text-xs leading-relaxed text-zinc-500">{spec.description}</p>
               <input
                 id={kind}
                 type="range"
                 min={0}
-                max={spec.maxQuantity}
-                step={spec.step}
-                value={value}
-                onChange={(e) => onQuantityChange(kind, Number(e.target.value))}
+                max={max}
+                step={step}
+                value={shown}
+                onChange={(e) =>
+                  onQuantityChange(kind, fromDisplayValue(Number(e.target.value), spec.dimension, system))
+                }
                 className="mt-3 w-full"
               />
             </div>

@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { MODIFICATION_KINDS, estimateRenovation } from "@/lib/costEstimator";
 import { designFromSearchParams, isEmptyDesign } from "@/lib/design";
 import { formatMoney, formatQuantity } from "@/lib/format";
+import { SiteFooter } from "@/components/SiteFooter";
 import { CheckoutClient } from "@/components/checkout/CheckoutClient";
 
 export const metadata: Metadata = { title: "Checkout — RenoEstimate" };
@@ -62,7 +63,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Sea
             {lines.map((line) => (
               <li key={line.kind} className="flex justify-between gap-3">
                 <span className="text-zinc-300">{line.label}</span>
-                <span className="font-mono text-zinc-500">{formatQuantity(line.quantity, line.unit)}</span>
+                <span className="font-mono text-zinc-500">{formatQuantity(line.quantity, line.dimension, region)}</span>
               </li>
             ))}
           </ul>
@@ -80,6 +81,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Sea
           <CheckoutClient design={design} />
         </section>
       </div>
+      <SiteFooter className="px-0" />
     </main>
   );
 }

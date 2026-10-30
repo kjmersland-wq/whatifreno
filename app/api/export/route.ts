@@ -1,16 +1,20 @@
 export const runtime = "edge";
 
 import { NextResponse } from "next/server";
-import { MODIFICATION_KINDS, estimateRenovation } from "@/lib/costEstimator";
+import { CONTINGENCY, MODIFICATION_KINDS, estimateRenovation } from "@/lib/costEstimator";
 import { isEmptyDesign, sanitizeDesign } from "@/lib/design";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, formatQuantity } from "@/lib/format";
 import { verifyPaidTransaction } from "@/lib/paddleServer";
+import { tenderCopyFor } from "@/lib/tenderCopy";
+import { formatMass, formatVolume, formatWasteWeight } from "@/lib/units";
 
 /**
- * POST /api/export — returns a print-friendly tender pack (HTML, Norwegian). PAID FEATURE.
+ * POST /api/export — returns a print-friendly tender pack (HTML). PAID FEATURE.
  * Body: { transactionId: string, region: RegionId, quantities: Record<ModificationKind, number> }
+ *
  * The document is only compiled after Paddle confirms the transaction is paid and was created
- * for this exact design. The price range is recomputed here; client-supplied prices are never trusted.
+ * for this exact design. Language, units (metric / imperial) and currency follow the region;
+ * quantities and prices are recomputed here, client-supplied figures are never trusted.
  */
 
 const escapeHtml = (value: string): string =>
@@ -21,16 +25,16 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Ugyldig JSON" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
   if (typeof body !== "object" || body === null) {
-    return NextResponse.json({ error: "Ugyldig forespørsel" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
   const raw = (typeof body.quantities === "object" && body.quantities !== null ? body.quantities : {}) as Record<string, unknown>;
   const design = sanitizeDesign(body.region, (kind) => raw[kind]);
   if (isEmptyDesign(design)) {
-    return NextResponse.json({ error: "Ingen tiltak valgt" }, { status: 400 });
+    return NextResponse.json({ error: "No changes selected" }, { status: 400 });
   }
 
   // Paywall: nothing below runs unless Paddle confirms payment for this design.
@@ -43,18 +47,43 @@ export async function POST(request: Request) {
     MODIFICATION_KINDS.map((kind) => ({ kind, quantity: design.quantities[kind] })),
     design.region,
   );
+  const { region, total, takeoff } = estimate;
+  const t = tenderCopyFor(region.id);
+  const system = region.unitSystem;
+  const q = (value: number, dimension: "length" | "area" | "count") => formatQuantity(value, dimension, region);
 
   const line = (kind: string) => estimate.lines.find((l) => l.kind === kind);
   const walls = line("load-bearing-wall-removal");
   const windows = line("window-addition");
   const garage = line("garage-addition");
-  const { region: profile, total } = estimate;
 
+  const date = new Intl.DateTimeFormat(region.locale, { dateStyle: "medium" }).format(new Date());
+  const pct = `${Math.round(CONTINGENCY.min * 100)}–${Math.round(CONTINGENCY.max * 100)}${t.lang.startsWith("en") ? "%" : " %"}`;
+  const windowCount = windows ? new Intl.NumberFormat(region.locale).format(windows.quantity) : "";
+
+  const workRows = [
+    walls && [t.demoWork, t.demoScope(q(walls.quantity, "length")), t.demoDrivers],
+    windows && [t.facadeWork, t.facadeScope(windowCount), t.facadeDrivers],
+    garage && [t.garageWork, t.garageScope(q(garage.quantity, "area")), t.garageDrivers],
+  ].filter((row): row is string[] => Boolean(row));
+
+  const takeoffRows = [
+    takeoff.concreteM3 > 0 && [t.concrete, formatVolume(takeoff.concreteM3, system, region.locale)],
+    takeoff.steelKg > 0 && [
+      takeoff.beamSection
+        ? `${t.steel} (${t.steelDetail(takeoff.beamSection, q(takeoff.beamSpanM, "length"))})`
+        : t.steel,
+      formatMass(takeoff.steelKg, system, region.locale),
+    ],
+    takeoff.wasteTonnes > 0 && [t.waste, formatWasteWeight(takeoff.wasteTonnes, system, region.locale)],
+  ].filter((row): row is string[] => Boolean(row));
+
+  const e = escapeHtml;
   const html = `<!DOCTYPE html>
-<html lang="nb">
+<html lang="${e(t.lang)}">
 <head>
 <meta charset="utf-8">
-<title>RenoEstimate – Anbudspakke</title>
+<title>${e(t.docTitle)}</title>
 <style>
   body { font-family: sans-serif; color: #1c1917; padding: 40px; line-height: 1.5; }
   .header { border-bottom: 2px solid #e7e5e4; padding-bottom: 20px; margin-bottom: 30px; }
@@ -68,58 +97,60 @@ export async function POST(request: Request) {
   table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
   th, td { border-bottom: 1px solid #e7e5e4; padding: 12px; text-align: left; }
   th { background-color: #fafaf9; color: #57534e; }
+  td.num { text-align: right; white-space: nowrap; }
   .footer-disclaimer { font-size: 11px; color: #a8a29e; text-align: center; margin-top: 50px; border-top: 1px solid #e7e5e4; padding-top: 20px; }
 </style>
 </head>
 <body>
   <div class="header">
-    <h1 class="title">RenoEstimate – Anbudspakke</h1>
-    <div class="subtitle">Region: ${escapeHtml(profile.label)} | Dato: ${new Date().toLocaleDateString("nb-NO")}</div>
+    <h1 class="title">${e(t.docTitle)}</h1>
+    <div class="subtitle">${e(t.regionLabel)}: ${e(region.label)} | ${e(t.dateLabel)}: ${e(date)}</div>
   </div>
 
   <div class="price-box">
-    <div class="card-title">Estimert budsjettramme (ekskl. MVA)</div>
-    <div class="price-range">${escapeHtml(formatMoney(total.min, profile))} – ${escapeHtml(formatMoney(total.max, profile))}</div>
-    <div class="subtitle">Basert på simulerte strukturelle endringer, inkl. 5–18 % margin for uforutsett</div>
+    <div class="card-title">${e(t.budgetTitle)}</div>
+    <div class="price-range">${e(formatMoney(total.min, region))} – ${e(formatMoney(total.max, region))}</div>
+    <div class="subtitle">${e(t.budgetNote(pct))}</div>
   </div>
 
   <div class="grid">
     <div class="card">
-      <div class="card-title">Prosjektspesifikasjoner</div>
-      <p><strong>Riving av bærevegg:</strong> ${walls ? `${walls.quantity} meter` : "Nei"}</p>
-      <p><strong>Nye vindusåpninger:</strong> ${windows ? `${windows.quantity} stk` : "Nei"}</p>
-      <p><strong>Ekstern garasje:</strong> ${garage ? `${garage.quantity} m²` : "Nei"}</p>
+      <div class="card-title">${e(t.specTitle)}</div>
+      <p><strong>${e(t.wallLabel)}:</strong> ${walls ? e(q(walls.quantity, "length")) : e(t.no)}</p>
+      <p><strong>${e(t.windowsLabel)}:</strong> ${windows ? e(t.windowsCount(windowCount)) : e(t.no)}</p>
+      <p><strong>${e(t.garageLabel)}:</strong> ${garage ? e(q(garage.quantity, "area")) : e(t.no)}</p>
     </div>
     <div class="card">
-      <div class="card-title">Neste steg</div>
-      <p>1. Send dette dokumentet til 2–3 lokale godkjente håndverkere.</p>
-      <p>2. Be om fastpris basert på spesifiserte mengder.</p>
-      <p>3. Ved bærevegg: innhent vurdering fra statiker før arbeid starter.</p>
+      <div class="card-title">${e(t.nextTitle)}</div>
+      ${t.next.map((step, i) => `<p>${i + 1}. ${e(step)}</p>`).join("\n      ")}
     </div>
   </div>
 
-  <h2>Mengde- og materialspesifikasjon</h2>
+  <h2>${e(t.tableTitle)}</h2>
   <table>
     <thead>
-      <tr><th>Tiltak</th><th>Simulert omfang</th><th>Kostnadsdrivere inkludert</th></tr>
+      <tr><th>${e(t.colWork)}</th><th>${e(t.colScope)}</th><th>${e(t.colDrivers)}</th></tr>
     </thead>
     <tbody>
-      ${walls ? `<tr><td><strong>Strukturell riving</strong></td><td>${walls.quantity} m bærevegg</td><td>Midlertidig avstivning, drager, statikk, avfallshåndtering og finish.</td></tr>` : ""}
-      ${windows ? `<tr><td><strong>Fasadeendring</strong></td><td>${windows.quantity} nye vinduer</td><td>Utskjæring i stenderverk, overligger, fuktsikring, isolering, beslag og listing.</td></tr>` : ""}
-      ${garage ? `<tr><td><strong>Eksternt byggverk</strong></td><td>${garage.quantity} m² garasje</td><td>Støpt såle, bindingsverk, tak, tekking, port og byggesøknad.</td></tr>` : ""}
+      ${workRows.map(([work, scope, drivers]) => `<tr><td><strong>${e(work!)}</strong></td><td>${e(scope!)}</td><td>${e(drivers!)}</td></tr>`).join("\n      ")}
     </tbody>
   </table>
 
-  <div class="footer-disclaimer">
-    Dette dokumentet inneholder budsjettindikasjoner, ikke et tilbud. Faktiske priser varierer med grunnforhold og materialstandard.
-  </div>
+  <h2>${e(t.takeoffTitle)}</h2>
+  <table>
+    <tbody>
+      ${takeoffRows.map(([label, value]) => `<tr><td>${e(label!)}</td><td class="num">${e(value!)}</td></tr>`).join("\n      ")}
+    </tbody>
+  </table>
+
+  <div class="footer-disclaimer">${e(t.disclaimer)}</div>
 </body>
 </html>`;
 
   return new NextResponse(html, {
     headers: {
       "Content-Type": "text/html; charset=utf-8",
-      "Content-Disposition": 'attachment; filename="RenoEstimate_Anbudspakke.html"',
+      "Content-Disposition": `attachment; filename="RenoEstimate_${region.id}.html"`,
     },
   });
 }

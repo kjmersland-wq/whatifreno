@@ -2,7 +2,8 @@
 
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { detectRegion } from "@/lib/locale";
 import { EMPTY_QUANTITIES, designToSearchParams } from "@/lib/design";
 import {
   MODIFICATION_KINDS,
@@ -28,6 +29,18 @@ export function WorkspaceShell() {
   const router = useRouter();
   const [quantities, setQuantities] = useState<Quantities>(EMPTY_QUANTITIES);
   const [regionId, setRegionId] = useState<RegionId>("norway");
+  const userPickedRegion = useRef(false);
+
+  // Adapt units and currency to the visitor's locale, unless they have already chosen a region.
+  useEffect(() => {
+    if (userPickedRegion.current) return;
+    setRegionId(
+      detectRegion({
+        locale: navigator.language,
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      }),
+    );
+  }, []);
 
   const estimate = useMemo(
     () =>
@@ -64,7 +77,10 @@ export function WorkspaceShell() {
           quantities={quantities}
           regionId={regionId}
           onQuantityChange={setQuantity}
-          onRegionChange={setRegionId}
+          onRegionChange={(id) => {
+            userPickedRegion.current = true;
+            setRegionId(id);
+          }}
           onReset={() => setQuantities(EMPTY_QUANTITIES)}
         />
         <button

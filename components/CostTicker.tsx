@@ -83,7 +83,7 @@ export function CostTicker({ estimate, className = "" }: CostTickerProps) {
                 <li key={line.kind} className="flex items-baseline justify-between gap-3 text-xs">
                   <span className="text-zinc-300">
                     {line.label}
-                    <span className="ml-1 text-zinc-500">· {formatQuantity(line.quantity, line.unit)}</span>
+                    <span className="ml-1 text-zinc-500">· {formatQuantity(line.quantity, line.dimension, region)}</span>
                   </span>
                   <span className="font-mono text-zinc-400">
                     {formatMoney(line.total.min, region)}–{formatMoney(line.total.max, region)}

@@ -44,6 +44,23 @@ body {
   mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
 }
 
+/* Marching-ants effect for the wall under simulation in the hero illustration. */
+@keyframes blueprint-dash {
+  to {
+    stroke-dashoffset: -32;
+  }
+}
+
+.animate-blueprint-dash {
+  animation: blueprint-dash 1.8s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-blueprint-dash {
+    animation: none;
+  }
+}
+
 input[type="range"] {
   accent-color: #7dd3fc;
 }

@@ -80,10 +80,11 @@ export function CheckoutClient({ design }: { design: Design }) {
         setError(body?.error ?? "Could not generate the document. Please try again.");
         return;
       }
+      const filename = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1];
       const url = URL.createObjectURL(await res.blob());
       const a = document.createElement("a");
       a.href = url;
-      a.download = "RenoEstimate_Anbudspakke.html";
+      a.download = filename ?? "RenoEstimate_tender-pack.html";
       a.click();
       URL.revokeObjectURL(url);
     } finally {

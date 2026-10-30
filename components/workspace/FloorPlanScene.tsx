@@ -1,7 +1,9 @@
 "use client";
 
 import { Canvas } from "@react-three/fiber";
-import { Grid, OrbitControls } from "@react-three/drei";
+import { Edges, Grid, OrbitControls } from "@react-three/drei";
+import { useMemo } from "react";
+import { ExtrudeGeometry, Shape } from "three";
 import type { Quantities } from "@/lib/design";
 
 export type { Quantities };
@@ -90,18 +92,70 @@ function Windows({ count }: { count: number }) {
   );
 }
 
-/** Attached garage on the east side; width follows the simulated floor area. */
+const GARAGE = {
+  wallHeight: 2.5,
+  roofRise: 1.1,
+  eaveOverhang: 0.4,
+  doorHeight: 2.1,
+  doorWidth: Math.min(4.8, GARAGE_DEPTH - 0.8),
+} as const;
+
+/**
+ * Triangular gable profile extruded to unit length, centred on the origin. The mesh scales it
+ * along its length to the garage width, so one geometry serves every size.
+ */
+function buildGableGeometry(): ExtrudeGeometry {
+  const half = (GARAGE_DEPTH + GARAGE.eaveOverhang) / 2;
+  const profile = new Shape();
+  profile.moveTo(-half, 0);
+  profile.lineTo(half, 0);
+  profile.lineTo(0, GARAGE.roofRise);
+  profile.closePath();
+  const geometry = new ExtrudeGeometry(profile, { depth: 1, bevelEnabled: false });
+  geometry.translate(0, 0, -0.5);
+  return geometry;
+}
+
+/**
+ * Attached low-poly garage on the east side: flat-shaded box walls, an apex (gable) roof with a
+ * ridge running east-west, and a dark door panel on the east gable end. Width follows the
+ * simulated floor area.
+ */
 function Garage({ area }: { area: number }) {
+  const gable = useMemo(buildGableGeometry, []);
   if (area <= 0) return null;
+
   const width = area / GARAGE_DEPTH;
-  const height = 2.8;
+  const centerX = ROOM.width / 2 + width / 2;
+  const { wallHeight, doorHeight, doorWidth } = GARAGE;
+
   return (
-    <Box
-      position={[ROOM.width / 2 + width / 2, height / 2, 0]}
-      size={[width, height, GARAGE_DEPTH]}
-      color="#38bdf8"
-      opacity={0.45}
-    />
+    <group>
+      <mesh position={[centerX, wallHeight / 2, 0]}>
+        <boxGeometry args={[width, wallHeight, GARAGE_DEPTH]} />
+        <meshStandardMaterial color="#a1a1aa" flatShading roughness={0.9} />
+        <Edges color="#e4e4e7" />
+      </mesh>
+
+      {/* Local x = span (world z), local z = length (world x): rotate a quarter turn about y. */}
+      <mesh
+        geometry={gable}
+        position={[centerX, wallHeight, 0]}
+        rotation={[0, Math.PI / 2, 0]}
+        scale={[1, 1, width + GARAGE.eaveOverhang]}
+      >
+        <meshStandardMaterial color="#52525b" flatShading roughness={0.8} />
+        <Edges color="#d4d4d8" />
+      </mesh>
+
+      {width >= 3 && (
+        <mesh position={[centerX + width / 2 + 0.02, doorHeight / 2, 0]}>
+          <boxGeometry args={[0.06, doorHeight, doorWidth]} />
+          <meshStandardMaterial color="#27272a" flatShading />
+          <Edges color="#7dd3fc" />
+        </mesh>
+      )}
+    </group>
   );
 }
 
