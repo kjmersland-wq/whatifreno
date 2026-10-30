@@ -1,8 +1,14 @@
 {
-  // Cloudflare PAGES project (not a Worker): static output of @cloudflare/next-on-pages.
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "whatifreno",
-  "pages_build_output_dir": ".vercel/output/static",
+  "main": ".open-next/worker.js",
   "compatibility_date": "2026-10-23",
-  "compatibility_flags": ["nodejs_compat"]
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": ".open-next/assets"
+  },
+  "observability": {
+    "enabled": true
+  }
 }
