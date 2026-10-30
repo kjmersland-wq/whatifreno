@@ -1,5 +1,3 @@
-export const runtime = "edge";
-
 import type { Metadata } from "next";
 import { safeNextPath } from "@/lib/session";
 import { LoginForm } from "./LoginForm";

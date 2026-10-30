@@ -1,14 +1,20 @@
 # RenoEstimate: project rules
 
 ## Deployment target
-Cloudflare Pages via `@cloudflare/next-on-pages` (`npm run pages:build`; plain `npm run build` stays a standard `next build`).
-In the Pages project set the build command to `npx @cloudflare/next-on-pages` and the output directory to `.vercel/output/static`.
-Add the `nodejs_compat` compatibility flag in the Pages project settings.
+Cloudflare Workers via the OpenNext adapter (`@opennextjs/cloudflare`), configured in `wrangler.jsonc` and `open-next.config.ts`.
+(`@cloudflare/next-on-pages` was dropped: it is deprecated, supports Next only up to 15.5.2, and targets Pages, not Workers.)
 
-## Edge runtime rules
-- Every non-static route (route handlers and dynamic pages) must declare `export const runtime = "edge";` at the very top of the file.
-- No Node built-ins (`fs`, `path`, `node:crypto`, `Buffer`, `stream`) in `app/`, `lib/`, `components/` or `hooks/`. Use Web APIs: `fetch`, `Response`, `crypto.subtle`, `TextEncoder`, `URL`.
-- `lib/costEstimator.ts` and `lib/design.ts` are pure and must stay free of I/O and Node APIs.
+- `npm run build` stays a plain `next build`. OpenNext calls it internally, so never point `build` at OpenNext (infinite recursion).
+- `npm run deploy` = `opennextjs-cloudflare build && opennextjs-cloudflare deploy`; `npm run preview` runs it locally.
+- Cloudflare dashboard (Workers Builds): build command `npm run build` (or empty), deploy command `npm run deploy`.
+- The Worker needs the `nodejs_compat` flag (set in wrangler.jsonc).
+- `NEXT_PUBLIC_*` variables are inlined at build time: define them as *build* variables. Secrets (`AUTH_SECRET`, `PADDLE_API_KEY`, `PADDLE_WEBHOOK_SECRET`) are runtime secrets (`wrangler secret put` or dashboard).
+- Local Worker secrets go in `.dev.vars` (gitignored).
+
+## Runtime rules
+- Do NOT add `export const runtime = "edge"` to routes or pages: OpenNext does not support it (everything runs on the Workers runtime, Node-compatible). Middleware is the only edge-style entry and is supported.
+- Prefer Web APIs (`fetch`, `crypto.subtle`, `TextEncoder`) over Node built-ins; no `fs`/`path` for request-time work (the Worker has no filesystem).
+- `lib/costEstimator.ts`, `lib/design.ts` and `lib/units.ts` are pure and must stay free of I/O and Node APIs.
 - Secrets are read from `process.env` inside request handlers only, never at module scope, and never in client components (`lib/paddleServer.ts` imports `server-only`).
 
 ## Code style

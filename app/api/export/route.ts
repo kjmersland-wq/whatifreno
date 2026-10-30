@@ -1,5 +1,3 @@
-export const runtime = "edge";
-
 import { NextResponse } from "next/server";
 import { CONTINGENCY, MODIFICATION_KINDS, estimateRenovation } from "@/lib/costEstimator";
 import { isEmptyDesign, sanitizeDesign } from "@/lib/design";
